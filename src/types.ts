@@ -5,4 +5,6 @@ export interface OAuthConfig {
 
 export interface OAuthContextValue extends OAuthConfig {
   login: () => void;
+  getCodeVerifier: () => string | null;
+  clearVerifier: () => void;
 }
