@@ -14,8 +14,7 @@ export function OAuthProvider({ clientId, redirectUri, children }: OAuthProvider
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-      const expires = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
-      document.cookie = `${PKCE_VERIFIER_KEY}=${codeVerifier}; expires=${expires}; path=/; SameSite=Lax`;
+      sessionStorage.setItem(PKCE_VERIFIER_KEY, codeVerifier);
 
       const url = buildOAuthUrl(DATAGSM_OAUTH_URL, {
         clientId,
@@ -30,15 +29,12 @@ export function OAuthProvider({ clientId, redirectUri, children }: OAuthProvider
   }, [clientId, redirectUri]);
 
   const getCodeVerifier = useCallback(() => {
-    const cookies = document.cookie.split('; ');
-    const verifierCookie = cookies.find((row) => row.startsWith(`${PKCE_VERIFIER_KEY}=`));
-    return verifierCookie ? verifierCookie.split('=')[1] : null;
+    return sessionStorage.getItem(PKCE_VERIFIER_KEY);
   }, []);
 
   const clearVerifier = useCallback(() => {
-    document.cookie = `${PKCE_VERIFIER_KEY}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
+    sessionStorage.removeItem(PKCE_VERIFIER_KEY);
   }, []);
-
   const value: OAuthContextValue = useMemo(
     () => ({
       clientId,
