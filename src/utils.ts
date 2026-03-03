@@ -5,16 +5,17 @@ function base64UrlEncode(array: Uint8Array): string {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+const CRYPTO_ERROR =
+  'Web Crypto API is not available. Please ensure you are in a secure context (HTTPS) and using a supported browser.';
+
 export function generateCodeVerifier(): string {
-  const array = new Uint8Array(32);
-  window.crypto.getRandomValues(array);
-  return base64UrlEncode(array);
+  if (typeof crypto === 'undefined' || !crypto.getRandomValues) throw new Error(CRYPTO_ERROR);
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
 }
 
 export async function generateCodeChallenge(verifier: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const hash = await window.crypto.subtle.digest('SHA-256', data);
+  if (typeof crypto === 'undefined' || !crypto.subtle?.digest) throw new Error(CRYPTO_ERROR);
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
   return base64UrlEncode(new Uint8Array(hash));
 }
 
