@@ -10,18 +10,23 @@ export interface OAuthProviderProps extends OAuthConfig {
 
 export function OAuthProvider({ clientId, redirectUri, children }: OAuthProviderProps) {
   const login = useCallback(async () => {
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = await generateCodeChallenge(codeVerifier);
+    try {
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-    const expires = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
-    document.cookie = `${PKCE_VERIFIER_KEY}=${codeVerifier}; expires=${expires}; path=/; SameSite=Lax`;
+      const expires = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
+      document.cookie = `${PKCE_VERIFIER_KEY}=${codeVerifier}; expires=${expires}; path=/; SameSite=Lax`;
 
-    const url = buildOAuthUrl(DATAGSM_OAUTH_URL, {
-      clientId,
-      redirectUri,
-      codeChallenge,
-    });
-    navigateToUrl(url);
+      const url = buildOAuthUrl(DATAGSM_OAUTH_URL, {
+        clientId,
+        redirectUri,
+        codeChallenge,
+      });
+      navigateToUrl(url);
+    } catch (error) {
+      console.error('Failed to initiate OAuth login:', error);
+      throw error;
+    }
   }, [clientId, redirectUri]);
 
   const getCodeVerifier = useCallback(() => {

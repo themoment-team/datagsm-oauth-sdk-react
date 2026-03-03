@@ -4,7 +4,7 @@ export interface OAuthConfig {
 }
 
 export interface OAuthContextValue extends OAuthConfig {
-  login: () => void;
+  login: () => Promise<void>;
   getCodeVerifier: () => string | null;
   clearVerifier: () => void;
 }
