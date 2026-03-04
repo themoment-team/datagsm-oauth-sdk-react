@@ -8,13 +8,21 @@ export interface OAuthProviderProps extends OAuthConfig {
   children: ReactNode;
 }
 
-export function OAuthProvider({ clientId, redirectUri, children }: OAuthProviderProps) {
+export function OAuthProvider({
+  clientId,
+  redirectUri,
+  authMode = 'STANDARD',
+  children,
+}: OAuthProviderProps) {
   const login = useCallback(async () => {
     try {
-      const codeVerifier = generateCodeVerifier();
-      const codeChallenge = await generateCodeChallenge(codeVerifier);
+      let codeChallenge: string | undefined;
 
-      sessionStorage.setItem(PKCE_VERIFIER_KEY, codeVerifier);
+      if (authMode === 'PKCE') {
+        const codeVerifier = generateCodeVerifier();
+        codeChallenge = await generateCodeChallenge(codeVerifier);
+        sessionStorage.setItem(PKCE_VERIFIER_KEY, codeVerifier);
+      }
 
       const url = buildOAuthUrl(DATAGSM_OAUTH_URL, {
         clientId,
@@ -26,7 +34,7 @@ export function OAuthProvider({ clientId, redirectUri, children }: OAuthProvider
       console.error('Failed to initiate OAuth login:', error);
       throw error;
     }
-  }, [clientId, redirectUri]);
+  }, [clientId, redirectUri, authMode]);
 
   const getCodeVerifier = useCallback(() => {
     return sessionStorage.getItem(PKCE_VERIFIER_KEY);
@@ -35,15 +43,17 @@ export function OAuthProvider({ clientId, redirectUri, children }: OAuthProvider
   const clearVerifier = useCallback(() => {
     sessionStorage.removeItem(PKCE_VERIFIER_KEY);
   }, []);
+
   const value: OAuthContextValue = useMemo(
     () => ({
       clientId,
       redirectUri,
+      authMode,
       login,
       getCodeVerifier,
       clearVerifier,
     }),
-    [clientId, redirectUri, login, getCodeVerifier, clearVerifier],
+    [clientId, redirectUri, authMode, login, getCodeVerifier, clearVerifier],
   );
 
   return <OAuthContext.Provider value={value}>{children}</OAuthContext.Provider>;

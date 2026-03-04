@@ -21,15 +21,18 @@ export async function generateCodeChallenge(verifier: string): Promise<string> {
 
 export function buildOAuthUrl(
   baseUrl: string,
-  config: OAuthConfig & { codeChallenge: string },
+  config: OAuthConfig & { codeChallenge?: string },
 ): string {
   const params = new URLSearchParams({
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
     response_type: 'code',
-    code_challenge: config.codeChallenge,
-    code_challenge_method: 'S256',
   });
+
+  if (config.codeChallenge) {
+    params.append('code_challenge', config.codeChallenge);
+    params.append('code_challenge_method', 'S256');
+  }
 
   return `${baseUrl}?${params.toString()}`;
 }

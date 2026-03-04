@@ -1,6 +1,9 @@
+type AuthMode = 'STANDARD' | 'PKCE';
+
 export interface OAuthConfig {
   clientId: string;
   redirectUri: string;
+  authMode?: AuthMode;
 }
 
 export interface OAuthContextValue extends OAuthConfig {
