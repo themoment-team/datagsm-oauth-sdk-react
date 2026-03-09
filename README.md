@@ -1,4 +1,4 @@
-# DataGSM OpenAPI SDK for React
+# DataGSM OAuth SDK for React
 
 React 애플리케이션에서 DataGSM OAuth 서비스를 간편하게 연동하기 위한 라이브러리입니다.
 
