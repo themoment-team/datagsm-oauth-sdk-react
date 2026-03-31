@@ -21,4 +21,4 @@ yarn add @themoment-team/datagsm-oauth-react
 
 ## 사용 방법
 
-자세한 사용법은 [기술문서](https://datagsm-front-client.vercel.app/docs/oauth/sdk/react)를 참고하십시오.
+자세한 사용법은 [기술문서](https://docs.datagsm.kr/oauth/sdk/react)를 참고하십시오.
