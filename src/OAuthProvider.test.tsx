@@ -63,6 +63,26 @@ describe('OAuthProvider', () => {
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
   });
 
+  it('설정한 scope를 authorize 요청에 싣는다', async () => {
+    const url = await loginAndGetUrl({ scope: ['app:account_read', 'app:club_read'] });
+
+    expect(url.searchParams.get('scope')).toBe('app:account_read app:club_read');
+  });
+
+  it('scope를 설정하지 않으면 scope 파라미터를 보내지 않는다', async () => {
+    const url = await loginAndGetUrl();
+
+    expect(url.searchParams.has('scope')).toBe(false);
+  });
+
+  it('잘못된 scope면 이동하지 않고 login이 실패한다', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result } = renderOAuth({ scope: ['a b'] });
+
+    await expect(result.current.login()).rejects.toThrow('must not contain whitespace');
+    expect(navigateToUrl).not.toHaveBeenCalled();
+  });
+
   it('useOAuth를 Provider 밖에서 쓰면 에러를 던진다', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
 

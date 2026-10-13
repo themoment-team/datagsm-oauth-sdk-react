@@ -14,6 +14,7 @@ export function OAuthProvider({
   clientId,
   redirectUri,
   authMode = 'STANDARD',
+  scope,
   children,
 }: OAuthProviderProps) {
   const login = useCallback(async () => {
@@ -29,13 +30,14 @@ export function OAuthProvider({
         redirectUri,
         state,
         codeChallenge,
+        scope,
       });
       navigateToUrl(url);
     } catch (error) {
       console.error('Failed to initiate OAuth login:', error);
       throw error;
     }
-  }, [clientId, redirectUri, authMode]);
+  }, [clientId, redirectUri, authMode, scope]);
 
   const getCodeVerifier = useCallback(() => {
     return sessionStorage.getItem(PKCE_VERIFIER_KEY);
@@ -50,11 +52,12 @@ export function OAuthProvider({
       clientId,
       redirectUri,
       authMode,
+      scope,
       login,
       getCodeVerifier,
       clearVerifier,
     }),
-    [clientId, redirectUri, authMode, login, getCodeVerifier, clearVerifier],
+    [clientId, redirectUri, authMode, scope, login, getCodeVerifier, clearVerifier],
   );
 
   return <OAuthContext.Provider value={value}>{children}</OAuthContext.Provider>;
