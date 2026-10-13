@@ -1,7 +1,9 @@
 import { type ReactNode, useMemo, useCallback } from 'react';
 import { OAuthContext } from './context';
 import { DATAGSM_OAUTH_URL, PKCE_VERIFIER_KEY } from './constants';
-import { buildOAuthUrl, navigateToUrl, generateCodeVerifier, generateCodeChallenge } from './utils';
+import { buildAuthorizationUrl, navigateToUrl } from './authorize';
+import { generateCodeVerifier, generateCodeChallenge, generateState } from './crypto';
+import { saveAuthorizationRequest } from './storage';
 import type { OAuthConfig, OAuthContextValue } from './types';
 
 export interface OAuthProviderProps extends OAuthConfig {
@@ -16,17 +18,16 @@ export function OAuthProvider({
 }: OAuthProviderProps) {
   const login = useCallback(async () => {
     try {
-      let codeChallenge: string | undefined;
+      const state = generateState();
+      const codeVerifier = authMode === 'PKCE' ? generateCodeVerifier() : undefined;
+      const codeChallenge = codeVerifier ? await generateCodeChallenge(codeVerifier) : undefined;
 
-      if (authMode === 'PKCE') {
-        const codeVerifier = generateCodeVerifier();
-        codeChallenge = await generateCodeChallenge(codeVerifier);
-        sessionStorage.setItem(PKCE_VERIFIER_KEY, codeVerifier);
-      }
+      saveAuthorizationRequest({ state, codeVerifier });
 
-      const url = buildOAuthUrl(DATAGSM_OAUTH_URL, {
+      const url = buildAuthorizationUrl(DATAGSM_OAUTH_URL, {
         clientId,
         redirectUri,
+        state,
         codeChallenge,
       });
       navigateToUrl(url);
