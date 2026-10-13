@@ -3,6 +3,11 @@ type AuthMode = 'STANDARD' | 'PKCE';
 export interface OAuthConfig {
   clientId: string;
   redirectUri: string;
+  /**
+   * 인가 코드 흐름 방식입니다. 기본값은 `PKCE`입니다.
+   * PKCE 없이 발급된 code는 토큰으로 바꿀 때 client_secret이 필요하므로,
+   * `STANDARD`는 client_secret을 보관하는 백엔드가 code를 교환할 때만 사용하세요.
+   */
   authMode?: AuthMode;
   /**
    * 요청할 scope 목록입니다. 형식은 `{appId}:account_read`이고, OIDC id_token이 필요하면 `openid`를 넣습니다.

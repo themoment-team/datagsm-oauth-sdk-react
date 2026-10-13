@@ -23,7 +23,7 @@ export interface OAuthProviderProps extends OAuthConfig {
 export function OAuthProvider({
   clientId,
   redirectUri,
-  authMode = 'STANDARD',
+  authMode = 'PKCE',
   scope,
   useNonce = true,
   issuer,

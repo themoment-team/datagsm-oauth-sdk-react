@@ -55,6 +55,31 @@ describe('OAuthProvider', () => {
     expect(loadAuthorizationRequest().state).toBe(second);
   });
 
+  it('기본 모드는 PKCE다', () => {
+    const { result } = renderOAuth();
+
+    expect(result.current.authMode).toBe('PKCE');
+  });
+
+  it('authMode를 지정하지 않으면 verifier를 저장하고 S256 challenge를 보낸다', async () => {
+    const url = await loginAndGetUrl();
+
+    expect(loadAuthorizationRequest().codeVerifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+  });
+
+  it('STANDARD 모드는 challenge를 보내지 않고 이전 verifier를 지운다', async () => {
+    await loginAndGetUrl();
+
+    const url = await loginAndGetUrl({ authMode: 'STANDARD' });
+
+    expect(loadAuthorizationRequest().codeVerifier).toBeNull();
+    expect(url.searchParams.has('code_challenge')).toBe(false);
+    expect(url.searchParams.has('code_challenge_method')).toBe(false);
+    expect(url.searchParams.get('state')).toBeTruthy();
+  });
+
   it('PKCE 모드에서는 verifier를 저장하고 S256 challenge를 보낸다', async () => {
     const url = await loginAndGetUrl({ authMode: 'PKCE' });
 
