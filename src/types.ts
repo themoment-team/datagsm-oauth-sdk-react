@@ -1,4 +1,6 @@
-type AuthMode = 'STANDARD' | 'PKCE';
+import type { OAuthCallbackResult } from './callback';
+
+export type AuthMode = 'STANDARD' | 'PKCE';
 
 export interface OAuthConfig {
   clientId: string;
@@ -30,6 +32,8 @@ export interface OAuthConfig {
 
 export interface OAuthContextValue extends OAuthConfig {
   login: () => Promise<void>;
+  /** handleOAuthCallback과 같습니다. url을 생략하면 현재 주소를 처리합니다. */
+  handleCallback: (url?: string) => OAuthCallbackResult;
   getCodeVerifier: () => string | null;
   clearVerifier: () => void;
 }

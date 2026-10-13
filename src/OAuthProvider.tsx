@@ -13,6 +13,7 @@ import {
   generateNonce,
   generateState,
 } from './crypto';
+import { handleOAuthCallback } from './callback';
 import { saveAuthorizationRequest } from './storage';
 import type { OAuthConfig, OAuthContextValue } from './types';
 
@@ -73,6 +74,7 @@ export function OAuthProvider({
       issuer,
       authorizationUrl,
       login,
+      handleCallback: handleOAuthCallback,
       getCodeVerifier,
       clearVerifier,
     }),

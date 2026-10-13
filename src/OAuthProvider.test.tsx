@@ -158,6 +158,25 @@ describe('OAuthProvider', () => {
     expect(loadAuthorizationRequest().state).toBeNull();
   });
 
+  it('login으로 시작한 흐름의 콜백을 handleCallback으로 처리한다', async () => {
+    const url = await loginAndGetUrl({ scope: ['openid'] });
+    const stored = loadAuthorizationRequest();
+    const state = url.searchParams.get('state') ?? '';
+    const { result } = renderOAuth();
+
+    const callback = result.current.handleCallback(
+      `https://app.example.com/callback?code=abc&state=${encodeURIComponent(state)}`,
+    );
+
+    expect(callback).toEqual({
+      ok: true,
+      code: 'abc',
+      state,
+      codeVerifier: stored.codeVerifier,
+      nonce: stored.nonce,
+    });
+  });
+
   it('useOAuth를 Provider 밖에서 쓰면 에러를 던진다', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
