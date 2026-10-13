@@ -30,3 +30,7 @@ yarn-error.log*
 
 # Reference folder
 develog/
+
+# Test files
+vitest.config.ts
+coverage/
