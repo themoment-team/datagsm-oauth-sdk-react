@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   generateCodeChallenge,
   generateCodeVerifier,
+  generateNonce,
   generateRandomString,
   generateState,
   timingSafeEqual,
@@ -20,9 +21,10 @@ describe('crypto', () => {
     expect(challenge).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
   });
 
-  it('code_verifier와 state는 32바이트 난수를 base64url 43자로 인코딩한다', () => {
+  it('code_verifier, state, nonce는 32바이트 난수를 base64url 43자로 인코딩한다', () => {
     expect(generateCodeVerifier()).toMatch(BASE64URL_43);
     expect(generateState()).toMatch(BASE64URL_43);
+    expect(generateNonce()).toMatch(BASE64URL_43);
   });
 
   it('호출할 때마다 다른 값을 만든다', () => {

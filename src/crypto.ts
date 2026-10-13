@@ -21,6 +21,10 @@ export function generateState(): string {
   return generateRandomString();
 }
 
+export function generateNonce(): string {
+  return generateRandomString();
+}
+
 export async function generateCodeChallenge(verifier: string): Promise<string> {
   if (typeof crypto === 'undefined' || !crypto.subtle?.digest) throw new Error(CRYPTO_ERROR);
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));

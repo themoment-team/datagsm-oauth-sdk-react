@@ -83,6 +83,28 @@ describe('OAuthProvider', () => {
     expect(navigateToUrl).not.toHaveBeenCalled();
   });
 
+  it('openid scope를 요청하면 nonce를 만들어 저장하고 authorize 요청에 싣는다', async () => {
+    const url = await loginAndGetUrl({ scope: ['openid', 'app:account_read'] });
+
+    const { nonce } = loadAuthorizationRequest();
+    expect(nonce).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(url.searchParams.get('nonce')).toBe(nonce);
+  });
+
+  it('openid scope가 없으면 nonce를 만들지 않는다', async () => {
+    const url = await loginAndGetUrl({ scope: ['app:account_read'] });
+
+    expect(loadAuthorizationRequest().nonce).toBeNull();
+    expect(url.searchParams.has('nonce')).toBe(false);
+  });
+
+  it('useNonce가 false면 openid scope여도 nonce를 만들지 않는다', async () => {
+    const url = await loginAndGetUrl({ scope: ['openid'], useNonce: false });
+
+    expect(loadAuthorizationRequest().nonce).toBeNull();
+    expect(url.searchParams.has('nonce')).toBe(false);
+  });
+
   it('useOAuth를 Provider 밖에서 쓰면 에러를 던진다', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
 

@@ -12,25 +12,25 @@ describe('authorization request storage', () => {
   });
 
   it('state와 verifier를 sessionStorage에 저장하고 꺼낸다', () => {
-    saveAuthorizationRequest({ state: 's', codeVerifier: 'v' });
+    saveAuthorizationRequest({ state: 's', codeVerifier: 'v', nonce: 'n' });
 
-    expect(loadAuthorizationRequest()).toEqual({ state: 's', codeVerifier: 'v' });
+    expect(loadAuthorizationRequest()).toEqual({ state: 's', codeVerifier: 'v', nonce: 'n' });
   });
 
-  it('verifier 없이 저장하면 이전 로그인 시도의 verifier를 지운다', () => {
-    saveAuthorizationRequest({ state: 's1', codeVerifier: 'old' });
+  it('verifier나 nonce 없이 저장하면 이전 로그인 시도의 값을 지운다', () => {
+    saveAuthorizationRequest({ state: 's1', codeVerifier: 'old', nonce: 'old' });
 
     saveAuthorizationRequest({ state: 's2' });
 
-    expect(loadAuthorizationRequest()).toEqual({ state: 's2', codeVerifier: null });
+    expect(loadAuthorizationRequest()).toEqual({ state: 's2', codeVerifier: null, nonce: null });
   });
 
   it('clearAuthorizationRequest는 저장한 값을 모두 지운다', () => {
-    saveAuthorizationRequest({ state: 's', codeVerifier: 'v' });
+    saveAuthorizationRequest({ state: 's', codeVerifier: 'v', nonce: 'n' });
 
     clearAuthorizationRequest();
 
-    expect(loadAuthorizationRequest()).toEqual({ state: null, codeVerifier: null });
+    expect(loadAuthorizationRequest()).toEqual({ state: null, codeVerifier: null, nonce: null });
   });
 });
 

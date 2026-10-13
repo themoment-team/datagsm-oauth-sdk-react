@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAuthorizationUrl, serializeScope } from './authorize';
+import { buildAuthorizationUrl, includesOpenIdScope, serializeScope } from './authorize';
 
 const BASE_URL = 'https://oauth.authorization.datagsm.kr/v1/oauth/authorize';
 
@@ -110,5 +110,27 @@ describe('buildAuthorizationUrl scope', () => {
     );
 
     expect(url.searchParams.has('scope')).toBe(false);
+  });
+});
+
+describe('nonce', () => {
+  it('nonce가 있으면 authorize 요청에 싣는다', () => {
+    const url = new URL(
+      buildAuthorizationUrl(BASE_URL, {
+        clientId: 'c',
+        redirectUri: 'https://a/cb',
+        state: 's',
+        scope: ['openid'],
+        nonce: 'nonce-value',
+      }),
+    );
+
+    expect(url.searchParams.get('nonce')).toBe('nonce-value');
+  });
+
+  it('includesOpenIdScope는 openid scope가 있는지 판단한다', () => {
+    expect(includesOpenIdScope(['app:account_read', ' openid '])).toBe(true);
+    expect(includesOpenIdScope(['app:openid'])).toBe(false);
+    expect(includesOpenIdScope(undefined)).toBe(false);
   });
 });

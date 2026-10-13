@@ -1,8 +1,13 @@
 import { type ReactNode, useMemo, useCallback } from 'react';
 import { OAuthContext } from './context';
 import { DATAGSM_OAUTH_URL, PKCE_VERIFIER_KEY } from './constants';
-import { buildAuthorizationUrl, navigateToUrl } from './authorize';
-import { generateCodeVerifier, generateCodeChallenge, generateState } from './crypto';
+import { buildAuthorizationUrl, includesOpenIdScope, navigateToUrl } from './authorize';
+import {
+  generateCodeVerifier,
+  generateCodeChallenge,
+  generateNonce,
+  generateState,
+} from './crypto';
 import { saveAuthorizationRequest } from './storage';
 import type { OAuthConfig, OAuthContextValue } from './types';
 
@@ -15,6 +20,7 @@ export function OAuthProvider({
   redirectUri,
   authMode = 'STANDARD',
   scope,
+  useNonce = true,
   children,
 }: OAuthProviderProps) {
   const login = useCallback(async () => {
@@ -23,7 +29,9 @@ export function OAuthProvider({
       const codeVerifier = authMode === 'PKCE' ? generateCodeVerifier() : undefined;
       const codeChallenge = codeVerifier ? await generateCodeChallenge(codeVerifier) : undefined;
 
-      saveAuthorizationRequest({ state, codeVerifier });
+      const nonce = useNonce && includesOpenIdScope(scope) ? generateNonce() : undefined;
+
+      saveAuthorizationRequest({ state, codeVerifier, nonce });
 
       const url = buildAuthorizationUrl(DATAGSM_OAUTH_URL, {
         clientId,
@@ -31,13 +39,14 @@ export function OAuthProvider({
         state,
         codeChallenge,
         scope,
+        nonce,
       });
       navigateToUrl(url);
     } catch (error) {
       console.error('Failed to initiate OAuth login:', error);
       throw error;
     }
-  }, [clientId, redirectUri, authMode, scope]);
+  }, [clientId, redirectUri, authMode, scope, useNonce]);
 
   const getCodeVerifier = useCallback(() => {
     return sessionStorage.getItem(PKCE_VERIFIER_KEY);
@@ -53,11 +62,12 @@ export function OAuthProvider({
       redirectUri,
       authMode,
       scope,
+      useNonce,
       login,
       getCodeVerifier,
       clearVerifier,
     }),
-    [clientId, redirectUri, authMode, scope, login, getCodeVerifier, clearVerifier],
+    [clientId, redirectUri, authMode, scope, useNonce, login, getCodeVerifier, clearVerifier],
   );
 
   return <OAuthContext.Provider value={value}>{children}</OAuthContext.Provider>;

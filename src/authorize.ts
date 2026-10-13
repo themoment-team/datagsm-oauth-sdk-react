@@ -1,9 +1,12 @@
+import { OPENID_SCOPE } from './constants';
+
 export interface AuthorizationRequestParams {
   clientId: string;
   redirectUri: string;
   state: string;
   codeChallenge?: string;
   scope?: readonly string[];
+  nonce?: string;
 }
 
 const WHITESPACE = /\s/;
@@ -40,12 +43,20 @@ export function buildAuthorizationUrl(baseUrl: string, params: AuthorizationRequ
     query.set('scope', scope);
   }
 
+  if (params.nonce) {
+    query.set('nonce', params.nonce);
+  }
+
   if (params.codeChallenge) {
     query.set('code_challenge', params.codeChallenge);
     query.set('code_challenge_method', 'S256');
   }
 
   return url.toString();
+}
+
+export function includesOpenIdScope(scope: readonly string[] | undefined): boolean {
+  return scope?.some((value) => value.trim() === OPENID_SCOPE) ?? false;
 }
 
 export function navigateToUrl(url: string): void {
