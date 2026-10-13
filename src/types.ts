@@ -14,6 +14,13 @@ export interface OAuthConfig {
    * 서버는 이 값을 id_token의 `nonce` 클레임에 그대로 넣습니다. 기본값은 `true`입니다.
    */
   useNonce?: boolean;
+  /**
+   * 인가 서버 주소입니다. 지정하면 `${issuer}/v1/oauth/authorize`로 이동합니다.
+   * 기본값은 `https://oauth.authorization.datagsm.kr`입니다.
+   */
+  issuer?: string;
+  /** authorize 엔드포인트 전체 주소입니다. `issuer`보다 우선합니다. */
+  authorizationUrl?: string;
 }
 
 export interface OAuthContextValue extends OAuthConfig {

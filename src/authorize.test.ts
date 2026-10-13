@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildAuthorizationUrl, includesOpenIdScope, serializeScope } from './authorize';
+import {
+  buildAuthorizationUrl,
+  includesOpenIdScope,
+  resolveAuthorizationUrl,
+  serializeScope,
+} from './authorize';
 
 const BASE_URL = 'https://oauth.authorization.datagsm.kr/v1/oauth/authorize';
 
@@ -132,5 +137,33 @@ describe('nonce', () => {
     expect(includesOpenIdScope(['app:account_read', ' openid '])).toBe(true);
     expect(includesOpenIdScope(['app:openid'])).toBe(false);
     expect(includesOpenIdScope(undefined)).toBe(false);
+  });
+});
+
+describe('resolveAuthorizationUrl', () => {
+  it('아무것도 지정하지 않으면 기존 기본 주소를 쓴다', () => {
+    expect(resolveAuthorizationUrl()).toBe(BASE_URL);
+    expect(resolveAuthorizationUrl({})).toBe(BASE_URL);
+  });
+
+  it('issuer를 지정하면 /v1/oauth/authorize를 붙인다', () => {
+    expect(resolveAuthorizationUrl({ issuer: 'http://localhost:8081' })).toBe(
+      'http://localhost:8081/v1/oauth/authorize',
+    );
+  });
+
+  it('issuer 끝의 /는 떼어 낸다', () => {
+    expect(resolveAuthorizationUrl({ issuer: 'https://stage.example.com//' })).toBe(
+      'https://stage.example.com/v1/oauth/authorize',
+    );
+  });
+
+  it('authorizationUrl이 issuer보다 우선한다', () => {
+    expect(
+      resolveAuthorizationUrl({
+        issuer: 'https://ignored.example.com',
+        authorizationUrl: 'https://custom.example.com/authorize',
+      }),
+    ).toBe('https://custom.example.com/authorize');
   });
 });

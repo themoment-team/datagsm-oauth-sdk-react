@@ -1,4 +1,4 @@
-import { OPENID_SCOPE } from './constants';
+import { AUTHORIZE_PATH, DATAGSM_OAUTH_URL, OPENID_SCOPE } from './constants';
 
 export interface AuthorizationRequestParams {
   clientId: string;
@@ -10,6 +10,21 @@ export interface AuthorizationRequestParams {
 }
 
 const WHITESPACE = /\s/;
+
+export interface AuthorizationEndpointConfig {
+  issuer?: string;
+  authorizationUrl?: string;
+}
+
+/**
+ * authorize 엔드포인트를 정합니다. 우선순위는 authorizationUrl, issuer, 기본 주소 순입니다.
+ * issuer는 서버의 OIDC discovery와 같게 끝의 `/`를 떼고 `/v1/oauth/authorize`를 붙입니다.
+ */
+export function resolveAuthorizationUrl(config: AuthorizationEndpointConfig = {}): string {
+  if (config.authorizationUrl) return config.authorizationUrl;
+  if (config.issuer) return `${config.issuer.replace(/\/+$/, '')}${AUTHORIZE_PATH}`;
+  return DATAGSM_OAUTH_URL;
+}
 
 /**
  * 서버는 authorize 요청의 scope를 공백 하나로 구분한 문자열로 받습니다.

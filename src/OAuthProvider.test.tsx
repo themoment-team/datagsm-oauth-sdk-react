@@ -105,6 +105,34 @@ describe('OAuthProvider', () => {
     expect(url.searchParams.has('nonce')).toBe(false);
   });
 
+  it('기본 authorize 주소로 이동한다', async () => {
+    const url = await loginAndGetUrl();
+
+    expect(url.origin + url.pathname).toBe(
+      'https://oauth.authorization.datagsm.kr/v1/oauth/authorize',
+    );
+  });
+
+  it('issuer를 지정하면 그 서버의 authorize 주소로 이동한다', async () => {
+    const url = await loginAndGetUrl({ issuer: 'http://localhost:8081/' });
+
+    expect(url.origin + url.pathname).toBe('http://localhost:8081/v1/oauth/authorize');
+  });
+
+  it('authorizationUrl을 지정하면 그 주소로 이동한다', async () => {
+    const url = await loginAndGetUrl({ authorizationUrl: 'https://custom.example.com/authorize' });
+
+    expect(url.origin + url.pathname).toBe('https://custom.example.com/authorize');
+  });
+
+  it('authorize 주소를 만들지 못하면 state를 저장하지 않는다', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result } = renderOAuth({ authorizationUrl: 'not a url' });
+
+    await expect(result.current.login()).rejects.toThrow();
+    expect(loadAuthorizationRequest().state).toBeNull();
+  });
+
   it('useOAuth를 Provider 밖에서 쓰면 에러를 던진다', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
