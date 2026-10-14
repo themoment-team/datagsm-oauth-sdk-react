@@ -6,4 +6,21 @@ export type { OAuthLoginButtonProps } from './OAuthLoginButton';
 
 export { useOAuth } from './hooks';
 
-export type { OAuthConfig, OAuthContextValue } from './types';
+export { useUser } from './useUser';
+export type { UseUserOptions, UseUserResult, UserStatus } from './useUser';
+export type { DataGsmUser } from './server/types';
+
+export { handleOAuthCallback, parseOAuthCallback } from './callback';
+export type {
+  OAuthCallbackErrorCode,
+  OAuthCallbackFailure,
+  OAuthCallbackParams,
+  OAuthCallbackResult,
+  OAuthCallbackSuccess,
+} from './callback';
+
+export { verifyState } from './state';
+export { clearAuthorizationRequest } from './storage';
+export { DATAGSM_OAUTH_ISSUER } from './constants';
+
+export type { AuthMode, OAuthConfig, OAuthContextValue } from './types';

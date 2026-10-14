@@ -1,7 +1,20 @@
 import { type ReactNode, useMemo, useCallback } from 'react';
 import { OAuthContext } from './context';
-import { DATAGSM_OAUTH_URL, PKCE_VERIFIER_KEY } from './constants';
-import { buildOAuthUrl, navigateToUrl, generateCodeVerifier, generateCodeChallenge } from './utils';
+import { PKCE_VERIFIER_KEY } from './constants';
+import {
+  buildAuthorizationUrl,
+  includesOpenIdScope,
+  navigateToUrl,
+  resolveAuthorizationUrl,
+} from './authorize';
+import {
+  generateCodeVerifier,
+  generateCodeChallenge,
+  generateNonce,
+  generateState,
+} from './crypto';
+import { handleOAuthCallback } from './callback';
+import { saveAuthorizationRequest } from './storage';
 import type { OAuthConfig, OAuthContextValue } from './types';
 
 export interface OAuthProviderProps extends OAuthConfig {
@@ -11,30 +24,37 @@ export interface OAuthProviderProps extends OAuthConfig {
 export function OAuthProvider({
   clientId,
   redirectUri,
-  authMode = 'STANDARD',
+  authMode = 'PKCE',
+  scope,
+  useNonce = true,
+  issuer,
+  authorizationUrl,
   children,
 }: OAuthProviderProps) {
   const login = useCallback(async () => {
     try {
-      let codeChallenge: string | undefined;
+      const state = generateState();
+      const codeVerifier = authMode === 'PKCE' ? generateCodeVerifier() : undefined;
+      const codeChallenge = codeVerifier ? await generateCodeChallenge(codeVerifier) : undefined;
 
-      if (authMode === 'PKCE') {
-        const codeVerifier = generateCodeVerifier();
-        codeChallenge = await generateCodeChallenge(codeVerifier);
-        sessionStorage.setItem(PKCE_VERIFIER_KEY, codeVerifier);
-      }
+      const nonce = useNonce && includesOpenIdScope(scope) ? generateNonce() : undefined;
 
-      const url = buildOAuthUrl(DATAGSM_OAUTH_URL, {
+      const url = buildAuthorizationUrl(resolveAuthorizationUrl({ issuer, authorizationUrl }), {
         clientId,
         redirectUri,
+        state,
         codeChallenge,
+        scope,
+        nonce,
       });
+
+      saveAuthorizationRequest({ state, codeVerifier, nonce });
       navigateToUrl(url);
     } catch (error) {
       console.error('Failed to initiate OAuth login:', error);
       throw error;
     }
-  }, [clientId, redirectUri, authMode]);
+  }, [clientId, redirectUri, authMode, scope, useNonce, issuer, authorizationUrl]);
 
   const getCodeVerifier = useCallback(() => {
     return sessionStorage.getItem(PKCE_VERIFIER_KEY);
@@ -49,11 +69,27 @@ export function OAuthProvider({
       clientId,
       redirectUri,
       authMode,
+      scope,
+      useNonce,
+      issuer,
+      authorizationUrl,
       login,
+      handleCallback: handleOAuthCallback,
       getCodeVerifier,
       clearVerifier,
     }),
-    [clientId, redirectUri, authMode, login, getCodeVerifier, clearVerifier],
+    [
+      clientId,
+      redirectUri,
+      authMode,
+      scope,
+      useNonce,
+      issuer,
+      authorizationUrl,
+      login,
+      getCodeVerifier,
+      clearVerifier,
+    ],
   );
 
   return <OAuthContext.Provider value={value}>{children}</OAuthContext.Provider>;

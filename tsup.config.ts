@@ -2,8 +2,16 @@ import { defineConfig } from 'tsup';
 import { readFileSync, writeFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
+// 브라우저용 엔트리에만 'use client'를 붙인다.
+// server, next 엔트리에 붙으면 Next.js가 클라이언트 모듈로 취급해 서버에서 쓸 수 없다.
+const CLIENT_ENTRIES = ['index'];
+
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: {
+    index: 'src/index.ts',
+    server: 'src/server/index.ts',
+    next: 'src/next/index.ts',
+  },
   format: ['cjs', 'esm'],
   dts: true,
   splitting: false,
@@ -13,11 +21,11 @@ export default defineConfig({
   treeshake: true,
   target: 'es2020',
   outDir: 'dist',
-  external: ['react'],
+  external: ['react', 'next', 'jose'],
   onSuccess: async () => {
     const distDir = 'dist';
-    const files = readdirSync(distDir).filter(
-      (file) => file.endsWith('.js') || file.endsWith('.cjs'),
+    const files = readdirSync(distDir).filter((file) =>
+      CLIENT_ENTRIES.some((entry) => file === `${entry}.js` || file === `${entry}.cjs`),
     );
 
     files.forEach((file) => {
