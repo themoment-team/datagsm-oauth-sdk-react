@@ -24,6 +24,7 @@ describe('public API', () => {
         'handleOAuthCallback',
         'parseOAuthCallback',
         'useOAuth',
+        'useUser',
         'verifyState',
       ].sort(),
     );
