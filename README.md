@@ -19,6 +19,15 @@ pnpm add @themoment-team/datagsm-oauth-react
 yarn add @themoment-team/datagsm-oauth-react
 ```
 
+## 어떤 방식을 쓸지
+
+DataGSM 토큰 엔드포인트는 외부 서비스의 브라우저 요청을 받지 않으므로, 토큰 교환은 항상 서버에서 해야 합니다.
+
+| 상황                                               | 사용할 API                                                          |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| 토큰을 교환하는 백엔드(Spring 등)가 따로 있다      | `OAuthProvider`와 `handleOAuthCallback()` ([사용 방법](#사용-방법)) |
+| Next.js(App Router) 하나로 프론트와 서버를 다 한다 | `@themoment-team/datagsm-oauth-react/next` ([Next.js](#nextjs))     |
+
 ## 흐름 한눈에 보기
 
 1. `login()`이 `state`, PKCE `code_verifier`, (openid를 요청하면) `nonce`를 만들어 `sessionStorage`에 저장하고 DataGSM authorize 페이지로 이동합니다.
@@ -184,6 +193,105 @@ scope는 `{appId}:{scopeName}` 형식입니다. 요청한 scope는 클라이언�
 - `scope`를 생략하면 서버가 `{appId}:account_read`, `{appId}:student_read`를 기본으로 부여합니다.
 - `club_read`, `project_read`는 명시적으로 요청해야 합니다.
 - `openid`만 요청해도 기본 scope가 함께 부여됩니다.
+
+## Next.js
+
+Next.js 14 이상의 App Router에서 로그인, 콜백, 세션, 로그아웃을 서버가 처리합니다. 토큰 교환과 사용자 정보 조회는 서버에서만 일어나고, 브라우저에는 암호화된 세션 쿠키만 남습니다. 전체 예제는 [`examples/next-app`](./examples/next-app)에 있습니다.
+
+### 1. 환경 변수
+
+```bash
+DATAGSM_CLIENT_ID=your-client-id
+DATAGSM_CLIENT_SECRET=your-client-secret # 선택. 로그인은 항상 PKCE를 씁니다.
+DATAGSM_SESSION_SECRET=                  # 32자 이상. 예: openssl rand -base64 32
+DATAGSM_REDIRECT_URI=http://localhost:3000/api/auth/callback
+```
+
+`DATAGSM_REDIRECT_URI`를 DataGSM 클라이언트의 리다이렉트 URL에 등록하세요. 경로는 `{basePath}/callback`(기본값 `/api/auth/callback`)이어야 합니다.
+
+### 2. 설정과 Route Handler
+
+```ts
+// lib/datagsm.ts
+import { createDataGsmAuth } from '@themoment-team/datagsm-oauth-react/next';
+
+export const auth = createDataGsmAuth({
+  clientId: process.env.DATAGSM_CLIENT_ID!,
+  clientSecret: process.env.DATAGSM_CLIENT_SECRET,
+  sessionSecret: process.env.DATAGSM_SESSION_SECRET!,
+  redirectUri: process.env.DATAGSM_REDIRECT_URI!,
+});
+```
+
+```ts
+// app/api/auth/[...datagsm]/route.ts
+import { auth } from '@/lib/datagsm';
+
+export const { GET, POST } = auth.handlers;
+```
+
+설정은 첫 요청 때 검사합니다. 그래서 환경 변수가 없는 `next build` 단계에서도 빌드가 깨지지 않습니다.
+
+### 3. 로그인한 사용자 읽기
+
+```tsx
+// 서버 컴포넌트, Route Handler, Server Action
+import { auth } from '@/lib/datagsm';
+
+export default async function Page() {
+  const user = await auth.getUser(); // DataGsmUser | null
+  if (!user) return <a href="/api/auth/login?returnTo=/dashboard">DataGSM으로 로그인</a>;
+  return <p>{user.student?.name ?? user.email}님, 안녕하세요.</p>;
+}
+```
+
+```tsx
+// 클라이언트 컴포넌트
+'use client';
+import { useUser } from '@themoment-team/datagsm-oauth-react';
+
+export function UserMenu() {
+  const { user, status, login, logout } = useUser();
+  if (status === 'loading') return null;
+  if (!user) return <button onClick={() => login()}>로그인</button>;
+  return <button onClick={() => logout()}>{user.email} 로그아웃</button>;
+}
+```
+
+`useUser()`는 마운트할 때 `/api/auth/session`을 한 번 호출합니다. `login(returnTo?)`은 로그인 뒤 돌아올 경로(기본값: 현재 주소)를 받고, `logout()`은 세션 쿠키를 지웁니다. 로그아웃 뒤 서버 컴포넌트까지 갱신하려면 `router.refresh()`를 호출하세요.
+
+### 라우트
+
+| 경로                                 | 설명                                                                                                        |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `GET /api/auth/login?returnTo=/path` | state와 PKCE 값을 10분짜리 암호화 쿠키에 담고 DataGSM으로 보냅니다. `returnTo`는 같은 출처 경로만 받습니다. |
+| `GET /api/auth/callback`             | state를 검증하고 토큰 교환, 사용자 정보 조회를 거쳐 세션 쿠키를 만든 뒤 `returnTo`로 보냅니다.              |
+| `GET /api/auth/session`              | `{ user }`를 JSON으로 돌려줍니다. 토큰은 내보내지 않습니다.                                                 |
+| `POST /api/auth/logout`              | 세션 쿠키를 지웁니다. 같은 출처(`Origin`)의 요청만 받습니다.                                                |
+
+로그인에 실패하면 `errorPath`(기본값 `/`)에 `?error=코드`를 붙여 보냅니다. 코드는 `invalid_state`(state 불일치, 로그인 요청 쿠키 없음·만료), `missing_code`, `invalid_grant` 같은 DataGSM 오류 코드, 네트워크 오류일 때 `server_error`입니다.
+
+### 옵션
+
+| 옵션            | 기본값                                       | 설명                                                       |
+| --------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| `clientId`      | (필수)                                       | DataGSM 클라이언트 ID                                      |
+| `redirectUri`   | (필수)                                       | 등록한 리다이렉트 URL. 이 값의 origin을 앱 주소로 씁니다.  |
+| `sessionSecret` | (필수)                                       | 쿠키 암호화 키를 만드는 32자 이상의 비밀값                 |
+| `clientSecret`  | -                                            | 넣으면 토큰 요청에 함께 보냅니다.                          |
+| `scope`         | 서버 기본값                                  | 요청할 scope 목록                                          |
+| `basePath`      | `/api/auth`                                  | 인증 라우트 경로. `useUser({ basePath })`도 같게 맞추세요. |
+| `sessionMaxAge` | 7일                                          | 세션 쿠키 수명(초)                                         |
+| `errorPath`     | `/`                                          | 로그인 실패 시 이동할 같은 출처 경로                       |
+| `issuer`        | `https://oauth.authorization.datagsm.kr`     | 스테이지·로컬 인가 서버를 쓸 때 지정합니다.                |
+| `userInfoUrl`   | `https://oauth.resource.datagsm.kr/userinfo` | 스테이지·로컬 사용자 정보 서버를 쓸 때 지정합니다.         |
+
+### 알아 둘 점
+
+- 세션에는 **로그인 시점의 사용자 정보**만 담깁니다. DataGSM 토큰은 보관하지 않고, 페이지마다 DataGSM을 호출하지도 않습니다. 사용자 정보가 바뀌면 다시 로그인해야 반영됩니다.
+- 로그아웃은 이 앱의 세션 쿠키만 지웁니다. DataGSM 쪽 로그인 상태는 남아 있어서, 다시 로그인하면 비밀번호 없이 들어갈 수 있습니다.
+- 세션이 쿠키 하나의 한도(약 4KB)를 넘으면 여러 쿠키로 나눠 담습니다.
+- Next.js가 아닌 서버에서는 `@themoment-team/datagsm-oauth-react/server`를 쓰세요. `createAuthHandler(config)`는 웹 표준 `Request`를 받아 `Response`를 돌려주고, `readSession(cookieHeader, { sessionSecret })`로 사용자를 읽습니다.
 
 ## 2.0.0 마이그레이션
 
