@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { handleOAuthCallback, parseOAuthCallback } from './callback';
-import { loadAuthorizationRequest, saveAuthorizationRequest } from './storage';
+import {
+  clearAuthorizationRequest,
+  loadAuthorizationRequest,
+  saveAuthorizationRequest,
+} from './storage';
 
 const REDIRECT_URI = 'https://app.example.com/callback';
 
 let sequence = 0;
-// handleOAuthCallback은 같은 URL의 결과를 재사용하므로 테스트마다 URL을 다르게 만든다.
+// handleOAuthCallback은 같은 URL을 한 번만 처리하므로 테스트마다 URL을 다르게 만든다.
 function callbackUrl(query: string): string {
   sequence += 1;
   return `${REDIRECT_URI}?${query}&_t=${sequence}`;
@@ -44,6 +48,11 @@ describe('parseOAuthCallback', () => {
 
     expect(params.code).toBe('abc');
     expect(params.state).toBe('xyz');
+  });
+
+  it('상대 URL에서도 code와 state를 꺼낸다', () => {
+    expect(parseOAuthCallback('?code=abc&state=xyz')).toMatchObject({ code: 'abc', state: 'xyz' });
+    expect(parseOAuthCallback('/callback?code=abc&state=xyz').code).toBe('abc');
   });
 
   it('URL을 생략하면 현재 주소를 읽는다', () => {
@@ -135,7 +144,7 @@ describe('handleOAuthCallback', () => {
     expect(result).toMatchObject({ ok: false, error: 'missing_code' });
   });
 
-  it('같은 URL을 다시 처리하면 첫 결과를 돌려준다 (StrictMode 이중 실행 대비)', () => {
+  it('같은 URL을 다시 처리하면 already_handled를 돌려준다 (StrictMode 이중 실행 대비)', () => {
     saveAuthorizationRequest({ state: 's', codeVerifier: 'v' });
     const url = callbackUrl('code=abc&state=s');
 
@@ -143,7 +152,47 @@ describe('handleOAuthCallback', () => {
     const second = handleOAuthCallback(url);
 
     expect(first).toMatchObject({ ok: true, codeVerifier: 'v' });
-    expect(second).toBe(first);
+    expect(second).toMatchObject({ ok: false, error: 'already_handled' });
+    expect(second).not.toHaveProperty('code');
+  });
+
+  it('뒤로 가기로 같은 콜백 URL에 돌아와도 이미 쓴 code를 성공으로 돌려주지 않는다', () => {
+    saveAuthorizationRequest({ state: 's' });
+    const url = callbackUrl('code=used&state=s');
+    handleOAuthCallback(url);
+    clearAuthorizationRequest();
+
+    const result = handleOAuthCallback(url);
+
+    expect(result.ok).toBe(false);
+    expect(result).not.toHaveProperty('code');
+  });
+
+  it('OAuth 파라미터가 없는 URL은 not_callback이고 저장값을 건드리지 않는다', () => {
+    saveAuthorizationRequest({ state: 's', codeVerifier: 'v' });
+
+    const result = handleOAuthCallback(`${REDIRECT_URI}?page=1`);
+
+    expect(result).toMatchObject({ ok: false, error: 'not_callback' });
+    expect(loadAuthorizationRequest()).toMatchObject({ state: 's', codeVerifier: 'v' });
+  });
+
+  it('상대 URL도 예외 없이 처리한다', () => {
+    saveAuthorizationRequest({ state: 's' });
+    sequence += 1;
+
+    const result = handleOAuthCallback(`?code=abc&state=s&_t=${sequence}`);
+
+    expect(result).toMatchObject({ ok: true, code: 'abc' });
+  });
+
+  it('경로가 있는 상대 URL도 처리한다', () => {
+    saveAuthorizationRequest({ state: 's' });
+    sequence += 1;
+
+    const result = handleOAuthCallback(`/callback?code=abc&state=s&_t=${sequence}`);
+
+    expect(result).toMatchObject({ ok: true, code: 'abc' });
   });
 
   it('다른 URL은 새로 처리한다', () => {
