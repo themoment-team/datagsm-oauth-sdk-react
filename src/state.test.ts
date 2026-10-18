@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { verifyState } from './state';
 import {
   clearAuthorizationRequest,
@@ -23,6 +23,24 @@ describe('authorization request storage', () => {
     saveAuthorizationRequest({ state: 's2' });
 
     expect(loadAuthorizationRequest()).toEqual({ state: 's2', codeVerifier: null, nonce: null });
+  });
+
+  describe('저장에 실패하면', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('중간까지 저장한 값을 지우고 원래 오류를 다시 던진다', () => {
+      const quotaError = Object.assign(new Error('quota exceeded'), { name: 'QuotaExceededError' });
+      const originalSetItem = Storage.prototype.setItem.bind(sessionStorage);
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string, value: string) => {
+        if (key === 'datagsm_oauth_react') throw quotaError;
+        originalSetItem(key, value);
+      });
+
+      expect(() => saveAuthorizationRequest({ state: 's', codeVerifier: 'v' })).toThrow(quotaError);
+      expect(loadAuthorizationRequest()).toEqual({ state: null, codeVerifier: null, nonce: null });
+    });
   });
 
   it('clearAuthorizationRequest는 저장한 값을 모두 지운다', () => {
@@ -55,16 +73,25 @@ describe('verifyState', () => {
     expect(verifyState('anything')).toBe(false);
 
     saveAuthorizationRequest({ state: 'expected' });
-
     expect(verifyState(null)).toBe(false);
+
+    saveAuthorizationRequest({ state: 'expected' });
     expect(verifyState('')).toBe(false);
   });
 
-  it('검증만 하고 저장된 state는 지우지 않는다', () => {
+  it('검증한 state는 지워서 같은 state를 다시 쓸 수 없다', () => {
     saveAuthorizationRequest({ state: 'expected' });
 
-    verifyState('expected');
+    expect(verifyState('expected')).toBe(true);
+    expect(loadAuthorizationRequest().state).toBeNull();
+    expect(verifyState('expected')).toBe(false);
+  });
 
-    expect(loadAuthorizationRequest().state).toBe('expected');
+  it('검증에 실패해도 저장된 state를 지운다', () => {
+    saveAuthorizationRequest({ state: 'expected' });
+
+    verifyState('forged');
+
+    expect(loadAuthorizationRequest().state).toBeNull();
   });
 });
