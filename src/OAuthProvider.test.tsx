@@ -158,6 +158,67 @@ describe('OAuthProvider', () => {
     expect(loadAuthorizationRequest().state).toBeNull();
   });
 
+  it('인라인 scope 배열로 다시 렌더해도 값이 같으면 login과 context 값을 유지한다', () => {
+    function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <OAuthProvider {...BASE_PROPS} scope={['app:account_read', 'openid']}>
+          {children}
+        </OAuthProvider>
+      );
+    }
+    const { result, rerender } = renderHook(() => useOAuth(), { wrapper: Wrapper });
+    const first = result.current;
+
+    rerender();
+
+    expect(result.current.login).toBe(first.login);
+    expect(result.current).toBe(first);
+  });
+
+  it('scope 값이 바뀌면 바뀐 scope로 로그인한다', async () => {
+    let scope: readonly string[] = ['app:account_read'];
+    function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <OAuthProvider {...BASE_PROPS} scope={scope}>
+          {children}
+        </OAuthProvider>
+      );
+    }
+    const { result, rerender } = renderHook(() => useOAuth(), { wrapper: Wrapper });
+    const firstLogin = result.current.login;
+
+    scope = ['app:account_read', 'app:club_read'];
+    rerender();
+    await act(() => result.current.login());
+
+    expect(result.current.login).not.toBe(firstLogin);
+    const calls = vi.mocked(navigateToUrl).mock.calls;
+    expect(new URL(calls[calls.length - 1][0]).searchParams.get('scope')).toBe(
+      'app:account_read app:club_read',
+    );
+  });
+
+  it('as const로 만든 readonly scope 상수를 받는다', async () => {
+    const SCOPES = ['app:account_read', 'openid'] as const;
+
+    const url = await loginAndGetUrl({ scope: SCOPES });
+
+    expect(url.searchParams.get('scope')).toBe('app:account_read openid');
+  });
+
+  it('sessionStorage를 쓸 수 없으면 이동하지 않고 login이 실패한다', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const blocked = Object.assign(new Error('blocked'), { name: 'SecurityError' });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw blocked;
+    });
+    const { result } = renderOAuth({ authMode: 'STANDARD' });
+
+    await expect(result.current.login()).rejects.toBe(blocked);
+    expect(navigateToUrl).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
   it('login으로 시작한 흐름의 콜백을 handleCallback으로 처리한다', async () => {
     const url = await loginAndGetUrl({ scope: ['openid'] });
     const stored = loadAuthorizationRequest();

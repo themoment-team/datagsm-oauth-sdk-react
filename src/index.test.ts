@@ -32,7 +32,7 @@ describe('public API', () => {
 
   it('공개 타입을 export한다', () => {
     expectTypeOf<AuthMode>().toEqualTypeOf<'STANDARD' | 'PKCE'>();
-    expectTypeOf<OAuthConfig['scope']>().toEqualTypeOf<string[] | undefined>();
+    expectTypeOf<OAuthConfig['scope']>().toEqualTypeOf<readonly string[] | undefined>();
     expectTypeOf<
       OAuthContextValue['handleCallback']
     >().returns.toEqualTypeOf<OAuthCallbackResult>();

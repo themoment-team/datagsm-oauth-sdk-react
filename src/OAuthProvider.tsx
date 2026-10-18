@@ -31,20 +31,28 @@ export function OAuthProvider({
   authorizationUrl,
   children,
 }: OAuthProviderProps) {
+  // 인라인 배열(scope={[...]})은 렌더마다 참조가 바뀐다. 값이 같으면 같은 배열을 쓰도록
+  // 직렬화한 키로 고정해, login과 context 값이 불필요하게 다시 만들어지지 않게 한다.
+  const scopeKey = scope === undefined ? undefined : JSON.stringify(scope);
+  const stableScope = useMemo<readonly string[] | undefined>(
+    () => (scopeKey === undefined ? undefined : (JSON.parse(scopeKey) as string[])),
+    [scopeKey],
+  );
+
   const login = useCallback(async () => {
     try {
       const state = generateState();
       const codeVerifier = authMode === 'PKCE' ? generateCodeVerifier() : undefined;
       const codeChallenge = codeVerifier ? await generateCodeChallenge(codeVerifier) : undefined;
 
-      const nonce = useNonce && includesOpenIdScope(scope) ? generateNonce() : undefined;
+      const nonce = useNonce && includesOpenIdScope(stableScope) ? generateNonce() : undefined;
 
       const url = buildAuthorizationUrl(resolveAuthorizationUrl({ issuer, authorizationUrl }), {
         clientId,
         redirectUri,
         state,
         codeChallenge,
-        scope,
+        scope: stableScope,
         nonce,
       });
 
@@ -54,7 +62,7 @@ export function OAuthProvider({
       console.error('Failed to initiate OAuth login:', error);
       throw error;
     }
-  }, [clientId, redirectUri, authMode, scope, useNonce, issuer, authorizationUrl]);
+  }, [clientId, redirectUri, authMode, stableScope, useNonce, issuer, authorizationUrl]);
 
   const getCodeVerifier = useCallback(() => {
     return sessionStorage.getItem(PKCE_VERIFIER_KEY);
@@ -69,7 +77,7 @@ export function OAuthProvider({
       clientId,
       redirectUri,
       authMode,
-      scope,
+      scope: stableScope,
       useNonce,
       issuer,
       authorizationUrl,
@@ -82,7 +90,7 @@ export function OAuthProvider({
       clientId,
       redirectUri,
       authMode,
-      scope,
+      stableScope,
       useNonce,
       issuer,
       authorizationUrl,
