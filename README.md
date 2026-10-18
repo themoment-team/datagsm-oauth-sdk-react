@@ -76,7 +76,9 @@ export function CustomLoginButton() {
 
 ### 3. 콜백 처리
 
-`handleOAuthCallback()`은 현재 URL에서 `code`, `state`, `error`를 읽고 state를 검증한 뒤, 저장해 둔 `code_verifier`와 `nonce`를 돌려줍니다. 저장값은 성공과 실패에 관계없이 지웁니다. 같은 URL을 다시 처리하면 첫 결과를 그대로 돌려주므로 React StrictMode에서 effect가 두 번 실행돼도 안전합니다.
+`handleOAuthCallback()`은 현재 URL에서 `code`, `state`, `error`를 읽고 state를 검증한 뒤, 저장해 둔 `code_verifier`와 `nonce`를 돌려줍니다. 저장값은 성공과 실패에 관계없이 지웁니다.
+
+콜백은 **한 번만 소비됩니다.** 같은 URL을 다시 처리하면 `already_handled`를 돌려주므로, React StrictMode에서 effect가 두 번 실행되거나 뒤로 가기로 콜백 URL에 돌아와도 이미 쓴 code로 토큰 교환을 다시 시도하지 않습니다. `already_handled`는 무시하면 되고, 처리한 뒤에는 `history.replaceState`로 주소창의 code를 지우는 것을 권장합니다.
 
 ```tsx
 import { useEffect, useState } from 'react';
@@ -89,6 +91,9 @@ export function OAuthCallbackPage() {
     const result = handleOAuthCallback();
 
     if (!result.ok) {
+      // 이미 처리한 콜백(StrictMode 재실행, 뒤로 가기)이면 첫 처리 결과를 그대로 둡니다.
+      if (result.error === 'already_handled') return;
+
       if (result.error === 'access_denied') {
         setMessage('권한 요청을 거부했습니다.');
       } else if (result.error === 'invalid_state') {
@@ -98,6 +103,9 @@ export function OAuthCallbackPage() {
       }
       return;
     }
+
+    // code가 주소창과 방문 기록에 남지 않도록 지웁니다.
+    window.history.replaceState(null, '', window.location.pathname);
 
     // code와 code_verifier를 앱 백엔드로 보내 토큰을 발급받습니다.
     fetch('/api/auth/datagsm', {
@@ -120,15 +128,25 @@ export function OAuthCallbackPage() {
 }
 ```
 
+`redirectUri`가 앱 루트처럼 콜백이 아닌 방문도 받는 주소라면, OAuth 파라미터가 없는 URL에서는 `not_callback`이 나오고 저장값은 그대로 남습니다. URL 인자로 `location.search`나 `/callback?code=...` 같은 상대 URL도 넘길 수 있습니다.
+
 결과 타입은 `ok`로 구분합니다.
 
-| 필드        | 설명                                                                                                    |
-| ----------- | ------------------------------------------------------------------------------------------------------- |
-| `ok: true`  | `code`, `state`, `codeVerifier`(STANDARD 모드면 `null`), `nonce`(openid를 요청하지 않았으면 `null`)     |
-| `ok: false` | `error`, `errorDescription`                                                                             |
-| `error`     | `invalid_state`(state 불일치 또는 저장값 없음), `missing_code`, 또는 서버가 보낸 값(`access_denied` 등) |
+| 필드        | 설명                                                                                                |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| `ok: true`  | `code`, `state`, `codeVerifier`(STANDARD 모드면 `null`), `nonce`(openid를 요청하지 않았으면 `null`) |
+| `ok: false` | `error`, `errorDescription`                                                                         |
+| `error`     | 아래 표 참고                                                                                        |
 
-state 검증만 따로 하려면 `verifyState(receivedState)`를, 저장값을 직접 지우려면 `clearAuthorizationRequest()`를 사용하세요.
+| `error`           | 의미                                                                      |
+| ----------------- | ------------------------------------------------------------------------- |
+| `not_callback`    | URL에 `code`, `state`, `error`가 없음. 콜백이 아닌 방문이며 저장값을 유지 |
+| `already_handled` | 이미 처리한 콜백 URL. 무시하면 됨                                         |
+| `invalid_state`   | state 불일치 또는 저장값 없음 (CSRF 의심)                                 |
+| `missing_code`    | 오류도 code도 없는 콜백                                                   |
+| 그 밖의 값        | 서버가 보낸 값 그대로 (`access_denied` 등)                                |
+
+state 검증만 따로 하려면 `verifyState(receivedState)`를 사용하세요. 검증한 state는 결과와 관계없이 지워지므로 한 번만 쓸 수 있습니다. 저장값을 직접 지우려면 `clearAuthorizationRequest()`를 사용하세요.
 
 ### 토큰 교환 (PKCE)
 
@@ -188,7 +206,8 @@ scope는 `{appId}:{scopeName}` 형식입니다. 요청한 scope는 클라이언�
 ## 2.0.0 마이그레이션
 
 - **기본 `authMode`가 `STANDARD`에서 `PKCE`로 바뀌었습니다.** 기존처럼 백엔드가 `client_secret`으로 code를 교환한다면 `authMode="STANDARD"`를 명시하세요. PKCE로 바꾸면 토큰 요청에 `code_verifier`를 함께 보내야 합니다.
-- 모든 authorize 요청에 `state`가 붙습니다. 콜백 페이지에서 `handleOAuthCallback()` 또는 `verifyState()`로 검증하세요.
-- `useOAuth()`의 `getCodeVerifier()`, `clearVerifier()`는 그대로 사용할 수 있습니다. 새 코드에서는 `handleOAuthCallback()` 결과의 `codeVerifier`를 사용하는 것을 권장합니다.
+- **PKCE는 HTTPS 또는 localhost에서만 동작합니다.** challenge를 만드는 Web Crypto(`crypto.subtle`)는 보안 컨텍스트에서만 제공되므로, `http://192.168.x.x:5173` 같은 HTTP 개발 서버나 HTTP 배포에서는 `login()`이 실패합니다. 이런 환경이라면 HTTPS로 바꾸거나 `authMode="STANDARD"`를 명시하세요.
+- 모든 authorize 요청에 `state`가 붙고, 모드와 관계없이 `sessionStorage`에 저장합니다. 사이트 데이터를 차단한 브라우저나 스토리지가 막힌 서드파티 iframe에서는 `login()`이 실패하며, 이때 중간까지 저장한 값은 지워집니다.
+- 콜백 페이지에서는 `handleOAuthCallback()`으로 state 검증과 저장값 정리를 한 번에 처리하는 것을 권장합니다. `getCodeVerifier()`, `clearVerifier()`는 그대로 쓸 수 있지만, 이 조합을 쓴다면 `verifyState()`로 state를 함께 검증하세요(검증한 state는 지워집니다).
 
 자세한 사용법은 [기술문서](https://docs.datagsm.kr/oauth/sdk/react)를 참고하십시오.
