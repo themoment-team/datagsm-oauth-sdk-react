@@ -1,0 +1,70 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm Trusted Publisher(OIDC) 인증과 provenance 서명에 필요
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      # Trusted Publishing은 npm 11.5.1 이상에서만 동작한다
+      - run: npm install -g npm@11
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Read package name and version
+        id: pkg
+        run: |
+          echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # 릴리즈 태그(예: 2.0.0)와 package.json 버전이 다르면 잘못된 버전이 배포되므로 막는다
+      - name: Check release tag matches package version
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::릴리즈 태그($TAG)와 package.json 버전($VERSION)이 다릅니다."
+            exit 1
+          fi
+
+      # 같은 버전은 다시 배포할 수 없으므로, 이미 있으면 실패 대신 건너뛴다
+      - name: Check whether version is already published
+        id: published
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          if npm view "$NAME@$VERSION" version > /dev/null 2>&1; then
+            echo "::notice::$NAME@$VERSION 은(는) 이미 배포되어 건너뜁니다."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.published.outputs.exists == 'false'
+        run: pnpm lint && pnpm type-check && pnpm test
+
+      # prepublishOnly(pnpm run build)가 배포 직전에 빌드한다
+      - if: steps.published.outputs.exists == 'false'
+        run: npm publish --access public --provenance
