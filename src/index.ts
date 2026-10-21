@@ -6,6 +6,10 @@ export type { OAuthLoginButtonProps } from './OAuthLoginButton';
 
 export { useOAuth } from './hooks';
 
+export { useUser } from './useUser';
+export type { UseUserOptions, UseUserResult, UserStatus } from './useUser';
+export type { DataGsmUser } from './server/types';
+
 export { handleOAuthCallback, parseOAuthCallback } from './callback';
 export type {
   OAuthCallbackErrorCode,
